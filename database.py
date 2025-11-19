@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -14,9 +15,16 @@ DB_HOST = os.getenv("POSTGRES_HOST")
 DB_PORT = os.getenv("POSTGRES_PORT")
 DB_NAME = os.getenv("POSTGRES_DB")
 
+def get_db():
+  db = SessionLocal()  # ← 여기서 Session 생성됨
+  try:
+    yield db
+  finally:
+    db.close()
 
 DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL, echo=True, json_serializer=lambda obj: json.dumps(obj, ensure_ascii=False),
+    json_deserializer=lambda s: json.loads(s),)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
