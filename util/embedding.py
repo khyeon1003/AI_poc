@@ -11,7 +11,7 @@ class Embedding:
     self.prefix="passage"
 
 ## 청킹 데이터 -> API로 임베딩
-  def chuck_to_embedding(self,chunks: List[Dict], batch_size: int = 8):
+  def chunk_to_embedding(self,chunks: List[Dict], batch_size: int = 8):
     texts = [f"{self.prefix}: {c['embed']}" for c in chunks]
     all_embeddings = []
 
