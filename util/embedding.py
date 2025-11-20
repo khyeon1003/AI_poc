@@ -38,4 +38,12 @@ class Embedding:
     norms = np.linalg.norm(arr, axis=1, keepdims=True) + 1e-12
     return (arr / norms).tolist()
 
+  def query_to_embedding(self,query:str,prefix: str= "query"):
+    prefix_query=f"{prefix}:{query}"
+    print(f"prefix_query: {prefix_query}")
+    vecs = self.huggingface.feature_extraction(prefix_query,model=self.model)
+    result = self.l2_normalize(vecs)
+    return result
+
+
 

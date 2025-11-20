@@ -1,5 +1,4 @@
 from typing import List
-
 from config.config import settings
 from config.open_ai_client import open_ai_client
 
