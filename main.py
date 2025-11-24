@@ -7,6 +7,7 @@ from database import Base, engine
 from models.document import Document  # noqa: F401
 from models.chunk import DocChunk
 from models.rag_log import RagLogModel
+from routers.vector_router import router as vector_router
 from routers.chatbot_router import router as chat_router
 
 
@@ -25,6 +26,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+app.include_router(vector_router)
 app.include_router(chat_router)
 
 @app.get("/")
