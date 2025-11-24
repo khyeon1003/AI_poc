@@ -1,6 +1,7 @@
 from typing import List
 from config.config import settings
 from config.open_ai_client import open_ai_client
+from util.resp_text import _resp_text
 
 
 class OCRProcessor:
@@ -30,7 +31,7 @@ class OCRProcessor:
             model=settings.OPENAI_MODEL,
             input=[{"role": "user", "content": content}],
         )
-        results.append(self._resp_text(resp).strip())
+        results.append(_resp_text(resp).strip())
       except Exception as e:
         results.append(f"[OCR_ERROR] {u} :: {e}")
 
@@ -49,18 +50,4 @@ class OCRProcessor:
       raise ValueError(f"Not a valid http(s) URL: {url}")
     return {"type": "input_image", "image_url": url}
 
-  ## 응답 객체에서 텍스트만 추출 하는 함수
-  @staticmethod
-  def _resp_text(resp) -> str:
-    """
-    🔹 OpenAI Responses API 응답 객체에서 텍스트만 추출하는 함수
-    - 우선 resp.output_text 사용 (간편 접근자)
-    - 예외 발생 시 fallback으로 output 구조 직접 탐색
-    """
-    try:
-      return resp.output_text
-    except Exception:
-      try:
-        return resp.output[0].content[0].text
-      except Exception:
-        return str(resp)
+
