@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Dict
 from config.open_ai_client import open_ai_client
 from config.config import settings
+from util.resp_text import _resp_text
+from datetime import datetime
 
 
 ## 추상 class
@@ -23,7 +25,7 @@ class QueryExpansionStrategy(ABC):
         }
         """
 
-##Reformulation 방식
+##Reformulation 방식-> 일단 1차적으로 이방식을 쓴다고 생각
 class ReformulationExpansion(QueryExpansionStrategy):
   name = "reformulation"
 
@@ -31,11 +33,24 @@ class ReformulationExpansion(QueryExpansionStrategy):
     super().__init__()
 
   async def expand(self, question: str) -> Dict:
+    ##시간 추론
+    now = datetime.now()
+    current_year = now.year
+    current_month = now.month
+
+    # 학기 자동 계산
+    if current_month <= 6:
+      current_semester = "1학기"
+    else:
+      current_semester = "2학기"
+
     prompt = f"""
         사용자의 질문을 벡터 검색에 적합한 형태로 재작성해줘.
         - 불필요한 말투, 감탄사는 제거
         - 학교명, 연도, 학기 등은 최대한 명시
-        - 학기, 연도가 없다면 현재 날짜 기준인 학기와 연도로 변환
+        - 학기/연도가 없다면 다음 값을 사용:
+        - 연도: {current_year}
+        - 학기: {current_semester}
         - 한 문장으로만 출력
 
         질문: "{question}"
@@ -44,10 +59,10 @@ class ReformulationExpansion(QueryExpansionStrategy):
 
     response = self.client.responses.create(
             model=settings.OPENAI_MODEL,
-            messages=[{"role": "user", "content": prompt}],
+            input=[{"role": "user", "content": prompt}],
         )
 
-    rewritten = response.strip().replace("\n", " ")
+    rewritten = _resp_text(response).strip().replace("\n", " ")
 
     return {
       "primary_query": rewritten,
@@ -59,7 +74,7 @@ class ReformulationExpansion(QueryExpansionStrategy):
       }
     }
 
-##Muti Query 방식
+##Muti Query 방식-> 여러번 검색후 재정렬하면됨=> 이거는 잘 안나올때 적용하기
 class MultiQueryExpansion(QueryExpansionStrategy):
   name = "multi_query"
 
@@ -78,7 +93,7 @@ class MultiQueryExpansion(QueryExpansionStrategy):
 
     response = self.client.responses.create(
         model=settings.OPENAI_MODEL,
-        messages=[{"role": "user", "content": prompt}],
+        input=[{"role": "user", "content": prompt}],
     )
     queries = [line.strip() for line in response.split("\n") if line.strip()]
 

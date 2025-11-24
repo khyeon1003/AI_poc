@@ -9,7 +9,6 @@ class RetrievedChunk:
     doc_id: str
     content: str
     score: float
-    metadata: dict
 
 
 class VectorRetriever:
@@ -21,12 +20,11 @@ class VectorRetriever:
       top_k: int = 20,
   ) -> List[RetrievedChunk]:
     sql = text("""
-               SELECT c.id                             AS chunk_id,
+               SELECT c.chunk_id                             AS chunk_id,
                       c.doc_id,
-                      c.content,
-                      c.metadata,
+                      c.text,
                       1 - (c.embedding <=> :query_vec) AS score
-               FROM chunks c
+               FROM doc_chunks c
                ORDER BY c.embedding <=> :query_vec
           LIMIT :top_k
                """)
@@ -43,9 +41,8 @@ class VectorRetriever:
       RetrievedChunk(
           chunk_id=row["chunk_id"],
           doc_id=row["doc_id"],
-          content=row["content"],
+          content=row["text"],
           score=row["score"],
-          metadata=row["metadata"],
       )
       for row in rows
     ]
