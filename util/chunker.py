@@ -9,7 +9,7 @@ class Chunker:
     규칙:
       0) 내부 마커([IMAGE OCR], [OCR_ERROR] 등) 제거
       1) 문단(\n\n) 기준 1차 분할
-      2) 문단 내부에서 '숫자 항목(1. 2) ① ② ...)' 시작 지점 기준 2차 분할
+      2) (옵션) 문단 내부에서 '숫자 항목(1. 2) ① ② ...)' 시작 지점 기준 2차 분할
       3) 토큰 한도 초과 시 슬라이딩 윈도우로 쪼개기(오버랩 적용)
       4) 너무 짧은 조각은 이전과 병합
       5) 각 청크의 임베딩 텍스트는 [TITLE] 프리픽스 포함
@@ -19,14 +19,19 @@ class Chunker:
 
     def __init__(
         self,
-        max_tokens: int = 600,      # 대략 토큰 한도(문자→토큰 근사)
-        overlap_tokens: int = 80,   # 문맥 유지를 위한 오버랩
-        min_tokens: int = 120,      # 너무 짧은 덩어리 병합 임계
+        max_tokens: int = 1500,         # chunk 크기: 한글 기준 꽤 크게
+        overlap_tokens: int = 200,      # 문맥 유지용 오버랩
+        min_tokens: int = 100,          # 너무 짧은 덩어리 병합 임계
         markers_to_strip: Optional[Iterable[str]] = None,
+        enable_item_split: bool = False,   # 숫자 목록 기준 분할 활성화 여부
+        normalize_newlines: bool = True,   # 과도한 줄바꿈 정규화 여부
     ) -> None:
         self.max_tokens = max_tokens
         self.overlap_tokens = overlap_tokens
         self.min_tokens = min_tokens
+        self.enable_item_split = enable_item_split
+        self.normalize_newlines = normalize_newlines
+
         # 청킹에서 제거할 내부 마커들
         self.markers_to_strip = set(markers_to_strip or [
             "[IMAGE OCR]",
@@ -43,6 +48,10 @@ class Chunker:
         """외부에서 호출하는 메인 청킹 함수"""
         cleaned_text = self._strip_internal_markers(text or "")
 
+        # HTML 파서 단계에서 줄바꿈이 너무 많이 생기는 경우 정규화
+        if self.normalize_newlines:
+            cleaned_text = self._normalize_newlines(cleaned_text)
+
         # 1) 문단 기준 → 빈 줄 2개 이상을 기준으로 split
         paragraphs = [
             p.strip()
@@ -50,7 +59,7 @@ class Chunker:
             if p.strip()
         ]
 
-        # 2) 문단 내부에서 숫자 항목 기준 세분화
+        # 2) 문단 내부에서 숫자 항목 기준 세분화 (옵션)
         units: List[str] = []
         for para in paragraphs:
             units.extend(self._split_paragraph(para))
@@ -68,8 +77,8 @@ class Chunker:
             results.append(
                 {
                     "chunk_index": idx,
-                    "raw": raw,    # UI 노출/하이라이트용
-                    "embed": embed # 임베딩/검색용
+                    "raw": raw,     # UI 노출/하이라이트용
+                    "embed": embed  # 임베딩/검색용
                 }
             )
         return results
@@ -98,11 +107,26 @@ class Chunker:
             cleaned_lines.append(line)
         return "\n".join(cleaned_lines)
 
+    @staticmethod
+    def _normalize_newlines(s: str) -> str:
+        """
+        HTML → text 과정에서 줄바꿈이 과하게 생기는 경우,
+        3줄 이상 연속된 개행은 2줄로 축소해서 문단 분리만 남기기.
+        """
+        # 3개 이상 개행 → 2개 개행으로 축소
+        s = re.sub(r'\n{3,}', '\n\n', s)
+        # trailing space 정리
+        return "\n".join(line.rstrip() for line in s.splitlines())
+
     def _split_paragraph(self, p: str) -> List[str]:
         """
-        문단 내부에 숫자/항목이 있으면 항목 단위로 분리,
-        없으면 문단 그대로 반환.
+        문단 내부에 숫자/항목이 있으면 항목 단위로 분리 (옵션),
+        아니면 문단 그대로 반환.
         """
+        if not self.enable_item_split:
+            return [p.strip()]
+
+        # 숫자 bullet 패턴이 있을 때만 분리
         if re.search(rf'^\s*{self.NUM_BULLET}\s+', p, re.MULTILINE):
             parts = re.split(self.item_splitter, p.strip())
             return [s.strip() for s in parts if s.strip()]

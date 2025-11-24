@@ -11,7 +11,7 @@ class Embedding:
     self.prefix="passage"
 
 ## 청킹 데이터 -> API로 임베딩
-  def chunk_to_embedding(self,chunks: List[Dict], batch_size: int = 8):
+  def chunk_to_embedding(self,chunks: List[Dict], batch_size: int = 32):
     texts = [f"{self.prefix}: {c['embed']}" for c in chunks]
     all_embeddings = []
 
@@ -19,7 +19,6 @@ class Embedding:
       batch = texts[i:i + batch_size]
       print(f"batch: {batch}")
       vecs = self.huggingface.feature_extraction(batch,model=self.model)  # (B, 1024)
-      print(f"vecs: {vecs}")
       all_embeddings.extend(vecs)
 
     # 정규화(코사인 유사도용)
@@ -33,10 +32,21 @@ class Embedding:
 
   ## 정규화용
   @staticmethod
-  def l2_normalize(vecs: List[List[float]]) -> List[List[float]]:
+  def l2_normalize(vecs):
     arr = np.array(vecs, dtype=np.float32)
-    norms = np.linalg.norm(arr, axis=1, keepdims=True) + 1e-12
-    return (arr / norms).tolist()
+
+    # 1D 벡터인 경우 → 단일 벡터 정규화
+    if arr.ndim == 1:
+      norm = np.linalg.norm(arr) + 1e-12
+      return arr / norm
+
+    # 2D (batch_size, dim) 인 경우 → 배치 정규화
+    elif arr.ndim == 2:
+      norms = np.linalg.norm(arr, axis=1, keepdims=True) + 1e-12
+      return arr / norms
+
+    else:
+      raise ValueError(f"l2_normalize: 지원하지 않는 차원입니다. shape={arr.shape}")
 
   def query_to_embedding(self,query:str,prefix: str= "query"):
     prefix_query=f"{prefix}:{query}"
